@@ -1,0 +1,662 @@
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/insanedude59/SplixUiLib/main/Main"))()
+local window = library:new({
+    textsize = 14, 
+    font = Enum.Font.Montserrat, 
+    name = "IJEY.YAWA", 
+    color = Color3.fromRGB(55, 110, 220)
+})
+-- Change Log Tab
+local changelog_tab = window:page({name = "MAGKAYAT"})
+local changelog_section = changelog_tab:section({name = "GIHIMO NI IJEY MGAYAWA", side = "left", size = 120})
+-- Change Log Tab
+ 
+ 
+local aimbot_tab = window:page({name = "Aimbot"})
+local aimbot_legit_section = aimbot_tab:section({name = "Legit", side = "left", size = 375})
+local aimbot_rage_section = aimbot_tab:section({name = "Rage", side = "right", size = 375})
+local aimbot_visual_section = aimbot_tab:section({name = "Visual", side = "left", size = 325})
+local aimbot_misc_section = aimbot_tab:section({name = "Miscellaneous", side = "right", size = 325})
+ 
+local visuals_tab = window:page({name = "Visuals"})
+local visuals_esp_section = visuals_tab:section({name = "ESP", side = "left", size = 710})
+local visuals_misc_section = visuals_tab:section({name = "Miscellaneous", side = "right", size = 710})
+ 
+local movement_tab = window:page({name = "Movement"})
+local movement_main_section = movement_tab:section({name = "Main", side = "left", size = 710})
+local movement_misc_section = movement_tab:section({name = "Miscellaneous", side = "right", size = 710})
+ 
+local other_tab = window:page({name = "Other"})
+local other_main_section = other_tab:section({name = "Main", side = "left", size = 710})
+local other_misc_section = other_tab:section({name = "Miscellaneous", side = "right", size = 710})
+ 
+ 
+-- framework
+ 
+local Framework = require(game:GetService("ReplicatedFirst"):WaitForChild("Framework"))
+local Firearm = require(game:GetService("ReplicatedStorage"):WaitForChild("Client"):WaitForChild("Abstracts"):WaitForChild("ItemInitializers"):WaitForChild("Firearm"))
+local Interface = Framework.Libraries.Interface
+local Bullets = Framework.Libraries.Bullets
+--local castLocalBullet = getupvalue(Bullets.Fire, 4)
+--local impactEffects = getupvalue(castLocalBullet, 6)
+ 
+ 
+ 
+-- global functions
+local function getClosestPlayer()
+    local closestPlayer, closestDistance = nil, 500
+    for _, targetPlayer in pairs(game.Players:GetPlayers()) do
+        if targetPlayer ~= player and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (player.Character.HumanoidRootPart.Position - targetPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if distance < closestDistance then
+                closestPlayer, closestDistance = targetPlayer, distance
+            end
+        end
+    end
+    return closestPlayer
+end
+ 
+ 
+-- Aimlock
+local AIMLOCK_FOV_RADIUS = 60
+local aimLockSmoothness = 4
+local aimLockMaxDistance = 300
+local aimLockPrediction = 0
+local mouse = game.Players.LocalPlayer:GetMouse()
+local UserInputService = game:GetService("UserInputService")
+ 
+local function getClosestPlayerToMouse()
+    local closestPlayer, closestDistance = nil, aimLockMaxDistance
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
+ 
+    for _, plr in pairs(game.Players:GetPlayers()) do
+        if plr ~= game.Players.LocalPlayer then
+            local char = plr.Character
+            if char and char:FindFirstChild("Head") then
+                local playerPos = char.HumanoidRootPart.Position
+                local screenPos, onScreen = workspace.CurrentCamera:WorldToScreenPoint(playerPos)
+ 
+                if onScreen then
+                    local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if screenDist < AIMLOCK_FOV_RADIUS and screenDist < closestDistance then
+                        closestPlayer, closestDistance = plr, screenDist
+                    end
+                end
+            end
+        end
+    end
+ 
+    return closestPlayer
+end
+ 
+local function calculateMovement(targetPos, targetVelocity)
+    local mousePos = Vector2.new(mouse.X, mouse.Y)
+    local movement = (targetVelocity * ((game.Players.LocalPlayer.Character.Head.Position - targetPos).Magnitude * aimLockPrediction)) or Vector3.zero
+    local predictedPos = targetPos + movement
+    local targetScreenPos = workspace.CurrentCamera:WorldToScreenPoint(predictedPos)
+    return (Vector2.new(targetScreenPos.X, targetScreenPos.Y) - mousePos) / aimLockSmoothness
+end
+ 
+local function isMouseOnHead()
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {game.Players.LocalPlayer.Character}
+ 
+    local ray = workspace:Raycast(mouse.UnitRay.Origin, mouse.UnitRay.Direction * 99999, raycastParams)
+    return ray and ray.Instance.Parent and ray.Instance.Parent:FindFirstChildOfClass("Humanoid") and ray.Instance.Name == "Head"
+end
+ 
+local function aimLock()
+    while isAimlockActive do
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+            local targetPlayer = getClosestPlayerToMouse()
+            print('123')
+            if targetPlayer and (not isMouseOnHead() or aimLockPrediction ~= 0) then
+                local movement = calculateMovement(targetPlayer.Character.Head.Position, targetPlayer.Character.HumanoidRootPart.Velocity)
+                mousemoverel(movement.X, movement.Y)
+                print('456')
+            end
+        end
+        game:GetService("RunService").Heartbeat:Wait()
+    end
+end
+ 
+local aimlock_fov_update = nil
+ 
+local aimlock_fov_circle = Drawing.new("Circle")
+aimlock_fov_circle.Radius = AIMLOCK_FOV_RADIUS * 1.5
+aimlock_fov_circle.Color = Color3.fromRGB(255, 255, 255)
+aimlock_fov_circle.Thickness = 1
+aimlock_fov_circle.Filled = false
+aimlock_fov_circle.Visible = false
+ 
+aimbot_legit_section:toggle({
+    name = "Aim-Lock",
+    def = false,
+    callback = function(enabled)
+        isAimlockActive = enabled
+        if isAimlockActive then
+            coroutine.wrap(aimLock)()
+ 
+            -- update circle position
+            aimlock_fov_update = game:GetService("UserInputService").InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseMovement then
+                    aimlock_fov_circle.Position = Vector2.new(input.Position.X, input.Position.Y + 60)
+                end
+            end)
+            aimlock_fov_circle.Visible = true
+            print('000')
+        else
+            aimlock_fov_update:Disconnect()
+            aimlock_fov_update = nil
+            aimlock_fov_circle.Visible = false
+        end
+    end
+})
+ 
+aimbot_legit_section:slider({
+    name = "Aim-Lock Smoothness",
+    def = 4, 
+    max = 10,
+    min = 1,
+    rounding = true,
+    ticking = false,
+    measuring = "",
+    callback = function(value)
+        aimLockSmoothness = (value / 2) + 0.5
+    end
+})
+ 
+aimbot_legit_section:slider({
+    name = "Aim-Lock Max Distance",
+    def = 300, 
+    max = 500,
+    min = 100,
+    rounding = true,
+    ticking = false,
+    measuring = "",
+    callback = function(value)
+        aimLockMaxDistance = value
+    end
+})
+ 
+aimbot_legit_section:dropdown({
+    name = "Prediction Mode",
+    def = "Off",
+    max = 4,
+    options = {"Off", "Low", "Normal", "High", "Extreme"},
+    callback = function(mode)
+        if tostring(mode) == "Off" then
+            aimLockPrediction = 0
+        elseif tostring(mode) == "Low" then
+            aimLockPrediction = 0.0005
+        elseif tostring(mode) == "Normal" then
+            aimLockPrediction = 0.00065
+        elseif tostring(mode) == "High" then
+            aimLockPrediction = 0.0008
+        elseif tostring(mode) == "Extreme" then
+            aimLockPrediction = 0.0095
+        end
+    end
+})
+ 
+aimbot_visual_section:slider({
+    name = "Aim-Lock FOV Radius",
+    def = 60, 
+    max = 360,
+    min = 20,
+    rounding = true,
+    ticking = false,
+    measuring = "",
+    callback = function(value)
+        AIMLOCK_FOV_RADIUS = value
+        aimlock_fov_circle.Radius = AIMLOCK_FOV_RADIUS * 1.5
+    end
+})
+ 
+-- Extended Hitboxes
+local isHitboxActive = false
+local hitboxSize = 2
+local originalHeadSize = 1.15
+ 
+local function updateHitboxSize(size)
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            player.Character.Head.Size = Vector3.new(size, size, size)
+        end
+    end
+end
+ 
+aimbot_rage_section:toggle({
+    name = "Extended Hitboxes",
+    def = false,
+    callback = function(enabled)
+        isHitboxActive = enabled
+        if not enabled then
+            updateHitboxSize(originalHeadSize)
+            return
+        end
+ 
+        coroutine.wrap(function()
+            while isHitboxActive do
+                updateHitboxSize(hitboxSize)
+                task.wait(5)
+            end
+        end)()
+    end
+})
+ 
+aimbot_rage_section:slider({
+    name = "Extended Hitbox Size",
+    def = 2,
+    min = 1,
+    max = 40,
+    rounding = true,
+    ticking = false,
+    callback = function(value)
+        hitboxSize = value
+        if isHitboxActive then
+            updateHitboxSize(hitboxSize)
+        end
+    end
+})
+ 
+-- Open/Close Menu Keybind
+other_main_section:keybind({
+    name = "Show/Hide Menu",
+    def = Enum.KeyCode.Insert,
+    callback = function(key)
+        window.key = key
+    end
+})
+ 
+-- Map ESP
+ 
+local MapESP_Loop_Func
+ 
+visuals_misc_section:toggle({
+    name = "Map ESP",
+    def = false,
+    callback = function(enabled)
+        MapESP_Loop_Func = Interface:GetVisibilityChangedSignal("Map"):Connect(function(Visible)
+            if Visible and enabled then
+                Interface:Get("Map"):EnableGodview()
+            end
+        end)
+        if not enabled then
+            Interface:Get("Map"):DisableGodview()
+            if MapESP_Loop_Func ~= nil then
+                MapESP_Loop_Func:Disconnect()
+                MapESP_Loop_Func = nil
+            end
+        end
+    end
+})
+ 
+-- Instant Reload
+ 
+local originalReloadFunction = getupvalue(Firearm, 7)
+ 
+aimbot_rage_section:toggle({
+    name = "Instant-Reload",
+    def = false,
+    callback = function(enabled)
+        if enabled then
+            setupvalue(Firearm, 7, function(...)
+                local Args = {...}
+                for Index = 0, Args[3].LoopCount do
+                    Args[4]("Commit", "Load")
+                end
+                Args[4]("Commit", "End")
+                return true
+            end)
+        else
+            setupvalue(Firearm, 7, originalReloadFunction)
+        end
+    end
+})
+ 
+-- No Recoil
+local originalFireImpulse = getupvalue(Bullets.Fire, 6)
+ 
+aimbot_legit_section:toggle({
+    name = "No-Recoil",
+    def = false,
+    callback = function(enabled)
+        if enabled then
+            setupvalue(Bullets.Fire, 6, function(...)
+                local ReturnArgs = {originalFireImpulse(...)}
+                for Index = 1, #ReturnArgs do
+                    ReturnArgs[Index] *= 0.01
+                end
+                return unpack(ReturnArgs)
+            end)
+        else
+            setupvalue(Bullets.Fire, 6, originalFireImpulse)
+        end
+    end
+})
+ 
+-- ESP
+local isESPActive
+local isCarESPActive
+ 
+local COREGUI = cloneref(game:GetService("CoreGui")) or game:GetService("CoreGui")
+ 
+local function create_esp(plr)
+    if plr.Character and plr.Character:FindFirstChild('Head') and plr.Character:FindFirstChildOfClass("Humanoid") then
+        local BillboardGui = Instance.new("BillboardGui")
+        local TextLabel = Instance.new("TextLabel")
+        BillboardGui.Adornee = plr.Character.Head
+        BillboardGui.Name = "APOCSENSE_ESP"
+        BillboardGui.Parent = COREGUI
+        BillboardGui.Size = UDim2.new(0, 100, 0, 150)
+        BillboardGui.StudsOffset = Vector3.new(0, 1, 0)
+        BillboardGui.AlwaysOnTop = true
+        TextLabel.Parent = BillboardGui
+        TextLabel.BackgroundTransparency = 1
+        TextLabel.Position = UDim2.new(0, 0, 0, -65)
+        TextLabel.Size = UDim2.new(0, 100, 0, 100)
+        TextLabel.Font = Enum.Font.Montserrat
+        TextLabel.TextSize = 13
+        TextLabel.TextColor3 = Color3.new(0.25, 0.5, 1)
+        TextLabel.TextStrokeTransparency = 0
+        TextLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+        TextLabel.Text = plr.Name.." | 0 Studs away"
+        TextLabel.ZIndex = 10
+ 
+        coroutine.wrap(function()
+            while isESPActive do
+                if plr.Character and plr.Character:FindFirstChild('HumanoidRootPart') and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local studs = math.floor((game.Players.LocalPlayer.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude)
+                    TextLabel.Text = plr.Name.." | "..studs.." Studs away"
+                end
+                task.wait(0.1)
+            end
+        end)()
+    end
+end
+ 
+local function create_car_esp(car)
+    if car and car:FindFirstChild('Base') then
+        local BillboardGui = Instance.new("BillboardGui")
+        local TextLabel = BillboardGui:FindFirstChild("TextLabel") or Instance.new("TextLabel")
+        BillboardGui.Adornee = car
+        BillboardGui.Name = "APOCSENSE_CAR_ESP"
+        BillboardGui.Parent = COREGUI
+        BillboardGui.Size = UDim2.new(0, 100, 0, 150)
+        BillboardGui.StudsOffset = Vector3.new(0, 1, 0)
+        BillboardGui.AlwaysOnTop = true
+        TextLabel.Parent = BillboardGui
+        TextLabel.BackgroundTransparency = 1
+        TextLabel.Position = UDim2.new(0, 0, 0, -15)
+        TextLabel.Size = UDim2.new(0, 100, 0, 100)
+        TextLabel.Font = Enum.Font.Montserrat
+        TextLabel.TextSize = 13
+        TextLabel.TextColor3 = Color3.new(1, 0.125, 0.25)
+        TextLabel.TextStrokeTransparency = 0
+        TextLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+        TextLabel.Text = car.Name.." | 0 Studs away"
+        TextLabel.ZIndex = 10
+ 
+        coroutine.wrap(function()
+            while isCarESPActive do
+                if car and car:FindFirstChild('Base') and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local studs = math.floor((game.Players.LocalPlayer.Character.HumanoidRootPart.Position - car.Base.Position).Magnitude)
+                    TextLabel.Text = car.Name.." | "..studs.." Studs away"
+                end
+                task.wait(0.1)
+            end
+        end)()
+    end
+end
+ 
+local function remove_esp()
+    for _, v in pairs(COREGUI:GetChildren()) do
+        if v.Name == "APOCSENSE_ESP" then
+            v:Destroy()
+        end
+    end
+end
+ 
+local function remove_car_esp()
+    for _, v in pairs(COREGUI:GetChildren()) do
+        if v.Name == "APOCSENSE_CAR_ESP" then
+            v:Destroy()
+        end
+    end
+end
+ 
+visuals_esp_section:toggle({
+    name = "Toggle ESP",
+    def = false,
+    callback = function(enabled)
+        isESPActive = enabled
+        if enabled then
+            coroutine.wrap(function()
+                while isESPActive do
+                    remove_esp()
+                    for _, v in pairs(game.Players:GetPlayers()) do
+                        if v ~= game.Players.LocalPlayer then
+                            create_esp(v)
+                        end
+                    end
+                    task.wait(5)
+                end
+            end)()
+        else
+            remove_esp()
+        end
+    end
+})
+ 
+visuals_esp_section:toggle({
+    name = "Toggle Car ESP",
+    def = false,
+    callback = function(enabled)
+        isCarESPActive = enabled
+        if enabled then
+            coroutine.wrap(function()
+                while isCarESPActive do
+                    remove_car_esp()
+                    for i,v in pairs(workspace.Vehicles.Spawned:GetChildren()) do
+                        create_car_esp(v)
+                    end
+                    task.wait(5)
+                end
+            end)()
+        else
+            remove_car_esp()
+        end
+    end
+})
+ 
+-- Chams
+local isChamsActive = false
+local isLPChamsActive = false
+local chamsFillColor = Color3.fromRGB(255, 255, 255)
+local chamsOutlineColor = Color3.fromRGB(255, 255, 255)
+local chamsAlwaysOnTop = false
+local chamsFillTransparency = 0.5
+local chamsOutlineTransparency = 0.5
+ 
+local function updateChams(fillcolor, outlinecolor, alwaysOnTop, filltransparency, outlinetransparency)
+    for i,v in pairs(game.Players:GetPlayers()) do
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+            local chams = v.Character:FindFirstChild("ESP_Chams") or Instance.new("Highlight")
+            chams.Name = "ESP_Chams"
+            chams.FillColor = fillcolor
+            chams.OutlineColor = outlinecolor
+            chams.DepthMode = alwaysOnTop and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+            chams.FillTransparency = filltransparency
+            chams.OutlineTransparency = outlinetransparency
+            chams.Parent = v.Character
+        end
+        if isLPChamsActive and game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") and game.Players.LocalPlayer.Character.Humanoid.Health > 0 then
+            local chams = game.Players.LocalPlayer.Character:FindFirstChild("ESP_Chams") or Instance.new("Highlight")
+            chams.Name = "ESP_Chams"
+            chams.FillColor = fillcolor
+            chams.OutlineColor = outlinecolor
+            chams.DepthMode = alwaysOnTop and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+            chams.FillTransparency = filltransparency
+            chams.OutlineTransparency = outlinetransparency
+            chams.Parent = game.Players.LocalPlayer.Character
+        end
+    end
+end
+ 
+local function destroyChams()
+    for i,v in pairs(game.Players:GetPlayers()) do
+        if v.Character and v.Character:FindFirstChild("ESP_Chams") then
+            v.Character.ESP_Chams:Destroy()
+        end
+    end
+end
+ 
+visuals_esp_section:toggle({
+    name = "Toggle Chams",
+    def = false,
+    callback = function(enabled)
+        isChamsActive = enabled
+        if enabled then
+            coroutine.wrap(function()
+                while isChamsActive do
+                    updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+                    task.wait(5)
+                end
+            end)()
+        else
+            destroyChams()
+        end
+    end
+})
+ 
+visuals_esp_section:toggle({
+    name = "Chams Always on Top",
+    def = false,
+    callback = function(bool)
+        chamsAlwaysOnTop = bool
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+    end
+})
+ 
+visuals_esp_section:slider({
+    name = "Chams Fill Transparency",
+    def = 50, 
+    max = 100,
+    min = 1,
+    rounding = true,
+    ticking = false,
+    measuring = "",
+    callback = function(transparency)
+        chamsFillTransparency = transparency / 100
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+    end
+})
+ 
+visuals_esp_section:slider({
+    name = "Chams Outline Transparency",
+    def = 50, 
+    max = 100,
+    min = 1,
+    rounding = true,
+    ticking = false,
+    measuring = "",
+    callback = function(transparency)
+        chamsOutlineTransparency = transparency / 100
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+    end
+})
+ 
+visuals_esp_section:colorpicker({
+    name = "Chams Fill Color",
+    cpname = nil,
+    def = Color3.fromRGB(255,255,255),
+    callback = function(color)
+        chamsFillColor = color
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+    end
+})
+ 
+visuals_esp_section:colorpicker({
+    name = "Chams Outline Color",
+    cpname = nil,
+    def = Color3.fromRGB(255,255,255),
+    callback = function(color)
+        chamsOutlineColor = color
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+    end
+})
+ 
+visuals_esp_section:toggle({
+    name = "Localplayer Chams",
+    def = false,
+    callback = function(enabled)
+        isLPChamsActive = enabled
+        if isChamsActive then
+            updateChams(chamsFillColor, chamsOutlineColor, chamsAlwaysOnTop, chamsFillTransparency, chamsOutlineTransparency)
+        end
+        if not enabled then
+            if game.Players.LocalPlayer.Character:FindFirstChild("ESP_Chams") then
+                game.Players.LocalPlayer.Character.ESP_Chams:Destroy()
+            end
+        end
+    end
+})
+ 
+ 
+ 
+coroutine.wrap(function() -- basic ac bypass
+    local oldIndex
+    oldIndex = hookmetamethod(game, "__index", function(self, index)
+        if tostring(index) == "Size" and (tostring(self) == "Head" or tostring(self) == "HeadCollider") then
+            return Vector3.one * originalHeadSize
+        end
+        return oldIndex(self, index)
+    end)
+end)()
+ 
+ 
+ 
+--[[section1:toggle({name = "toggle",def = false,callback = function(value)
+  tog = value
+  print(tog)
+end})
+ 
+section1:slider({name = "rate ui lib 1-100",def = 1, max = 100,min = 1,rounding = true,ticking = false,measuring = "",callback = function(value)
+   print(value)
+end})
+ 
+section1:dropdown({name = "dropdown",def = "",max = 10,options = {"1","2","3","4","5","6","7","8","9","10"},callback = function(chosen)
+   print(chosen)
+end})
+ 
+section1:buttonbox({name = "buttonbox",def = "",max = 4, options = {"yoyoyo","yo2","yo3","yo4"},callback = function(value)
+   print(value)
+end})
+ 
+ 
+section1:multibox({name = "multibox",def = {}, max = 4,options = {"1","2","3","4"},callback = function(value)
+   print(value)
+end})
+ 
+section1:textbox({name = "textbox",def = "default text",placeholder = "Enter WalkSpeed",callback = function(value)
+   print(value)
+end})
+ 
+section1:keybind({name = "set ui keybind",def = nil,callback = function(key)
+   window.key = key
+end})
+ 
+local picker = section1:colorpicker({name = "color",cpname = nil,def = Color3.fromRGB(255,255,255),callback = function(value)
+   color = value
+end})]]--
